@@ -14,6 +14,7 @@
       "ADMIN_TOKEN",
       "CF_API_TOKEN",
       "CF_ACCOUNT_ID"
+//部署失败先创建好环境变量然后重新部署
     ]
   },
   "assets": {
@@ -21,12 +22,20 @@
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
     "run_worker_first": true
+
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "one-api-workers",
       "database_id": "fefa654d-f63a-4923-a45f-421317b1b5b5"
+//Workers & Pages → Create → Workers → Connect to Git
+//→ 选 FTYW2026/one-api-workers
+//→ 构建命令（复制粘贴，它在云端跑）：
+ //  curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && bun install && bun run build
+//→ 部署命令：
+//   npx wrangler deploy
+// 提前创建号D1 名称为 one-api-workers，把id复制过来
     }
   ],
   "analytics_engine_datasets": [
