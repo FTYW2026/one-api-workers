@@ -39,7 +39,7 @@ Based on <a href="https://github.com/dreamhunter2333/awsl-one-api" target="_blan
 
 ### One-click deploy
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Tokinx/one-api-workers)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/FTYW2026/one-api-workers)
 
 ### Manual deploy
 
