@@ -11,8 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { useBillingConfig } from "@/hooks/use-billing-config";
-import { DEFAULT_BILLING_DISPLAY_DECIMALS, rawBillingToUsd, usdToRawBilling } from "@/lib/billing";
-import { formatCurrency, copyToClipboard, generateTokenKey, cn } from "@/lib/utils";
+import {
+  DEFAULT_BILLING_DISPLAY_DECIMALS,
+  normalizeBillingDisplayDecimals,
+  rawBillingToUsd,
+  usdToRawBilling,
+} from "@/lib/billing";
+import { copyToClipboard, generateTokenKey, cn } from "@/lib/utils";
 import {
   Plus,
   RefreshCw,
@@ -83,13 +88,27 @@ const isUnlimitedTokenQuota = (value: number): boolean => {
   return value === UNLIMITED_TOKEN_QUOTA;
 };
 
-const formatAvailableQuota = (value: number, unlimitedLabel: string): string => {
+const formatQuotaAmount = (
+  value: number,
+  unlimitedLabel: string,
+  displayDecimals = DEFAULT_BILLING_DISPLAY_DECIMALS,
+): string => {
   if (isUnlimitedTokenQuota(value)) {
     return unlimitedLabel;
   }
 
-  const usdValue = Math.max(0, Math.floor(rawBillingToUsd(value)));
-  return `$${usdValue}`;
+  const usdValue = Math.max(0, rawBillingToUsd(value));
+  const fixedValue = usdValue.toFixed(normalizeBillingDisplayDecimals(displayDecimals));
+  return `$${Number.parseFloat(fixedValue)}`;
+};
+
+const formatUsagePercent = (percent: number): string => {
+  if (!Number.isFinite(percent) || percent <= 0) return "0%";
+  if (percent < 0.01) return "<0.01%";
+  if (percent >= 100) return `${percent.toFixed(0)}%`;
+  const decimals = percent < 10 ? 2 : 1;
+  const factor = 10 ** decimals;
+  return `${Number.parseFloat((Math.floor(percent * factor) / factor).toFixed(decimals))}%`;
 };
 
 export function Tokens({ createMode = false, editRoute = false }: { createMode?: boolean; editRoute?: boolean }) {
@@ -254,7 +273,6 @@ export function Tokens({ createMode = false, editRoute = false }: { createMode?:
   const closeForm = () => {
     resetForm();
     setView("list");
-
     if (createMode || isRouteEdit) {
       navigate("/tokens", { replace: true });
     }
@@ -425,13 +443,10 @@ export function Tokens({ createMode = false, editRoute = false }: { createMode?:
                 const channelKeys = config.channel_keys || [];
                 const usedQuota = token.usage || 0;
                 const totalQuota = normalizeTokenQuota(config.total_quota);
-                const availableQuota = isUnlimitedTokenQuota(totalQuota)
-                  ? UNLIMITED_TOKEN_QUOTA
-                  : Math.max(totalQuota - usedQuota, 0);
                 const usagePercent = isUnlimitedTokenQuota(totalQuota)
                   ? 0
                   : totalQuota > 0
-                    ? Math.min(100, (usedQuota / totalQuota) * 100)
+                    ? (usedQuota / totalQuota) * 100
                     : usedQuota > 0
                       ? 100
                       : 0;
@@ -499,9 +514,9 @@ export function Tokens({ createMode = false, editRoute = false }: { createMode?:
                           </span>
                         </span>
                         <span className="text-muted-foreground">
-                          {t('tokens.usedAvailable')}:{" "}
+                          {t('tokens.usedTotal')}:{" "}
                           <span className="text-foreground">
-                            {formatCurrency(usedQuota, displayDecimals)}/{formatAvailableQuota(availableQuota, t('common.unlimited'))}
+                            {formatQuotaAmount(usedQuota, t('common.unlimited'), displayDecimals)} / {formatQuotaAmount(totalQuota, t('common.unlimited'), displayDecimals)}
                           </span>
                         </span>
                       </div>
@@ -511,7 +526,7 @@ export function Tokens({ createMode = false, editRoute = false }: { createMode?:
                             "h-full rounded-full transition-all",
                             usagePercent > 90 ? "bg-destructive" : usagePercent > 70 ? "bg-warning" : "bg-primary",
                           )}
-                          style={{ width: `${usagePercent}%` }}
+                          style={{ width: `${Math.min(100, usagePercent > 0 ? Math.max(usagePercent, 0.5) : 0)}%` }}
                         />
                       </div>
                     </div>
@@ -537,7 +552,7 @@ export function Tokens({ createMode = false, editRoute = false }: { createMode?:
                       <div className="w-48 flex-shrink-0">
                         <div className="flex items-center justify-between text-xs mb-1">
                           <span className="text-muted-foreground">
-                            {formatCurrency(usedQuota, displayDecimals)} / {formatAvailableQuota(availableQuota, t('common.unlimited'))}
+                            {formatQuotaAmount(usedQuota, t('common.unlimited'), displayDecimals)} / {formatQuotaAmount(totalQuota, t('common.unlimited'), displayDecimals)}
                           </span>
                           <span
                             className={cn(
@@ -549,7 +564,7 @@ export function Tokens({ createMode = false, editRoute = false }: { createMode?:
                                   : "text-muted-foreground",
                             )}
                           >
-                            {usagePercent.toFixed(0)}%
+                            {formatUsagePercent(usagePercent)}
                           </span>
                         </div>
                         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -558,7 +573,7 @@ export function Tokens({ createMode = false, editRoute = false }: { createMode?:
                               "h-full rounded-full transition-all",
                               usagePercent > 90 ? "bg-destructive" : usagePercent > 70 ? "bg-warning" : "bg-primary",
                             )}
-                            style={{ width: `${usagePercent}%` }}
+                            style={{ width: `${Math.min(100, usagePercent > 0 ? Math.max(usagePercent, 0.5) : 0)}%` }}
                           />
                         </div>
                       </div>
