@@ -242,7 +242,7 @@
     "channelsAll": "全部",
     "channelsCount": "{{count}}個",
     "channelsCountWithUnit": "{{count}} 渠道",
-    "usedAvailable": "已用/可用",
+    "usedAvailable": "已用/總額",
     "resetQuota": "重設配額"
   },
   "pricing": {
