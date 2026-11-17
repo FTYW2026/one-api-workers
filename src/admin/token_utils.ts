@@ -1,6 +1,7 @@
 import { Context } from "hono";
 
 import {
+    BILLING_RAW_SCALE,
     calculateRequestCostRaw,
     calculateTokenRateCostRaw,
 } from "../billing";
@@ -28,8 +29,25 @@ const normalizeBillingMode = (value: unknown): PricingBillingMode | undefined =>
     return undefined;
 };
 
+// 旧版 request 字段的单位是"微美元"（1,000,000 = $1），保留原换算逻辑
 const calculateFixedCostRaw = (value: unknown): number => {
     return calculateRequestCostRaw(value || 0);
+};
+
+// 新版按次计费：字段按美元填写（定价页显示 "$x / 次"），直接换算为 raw 单位
+const calculateUsdCostRaw = (value: unknown): number => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return Math.max(0, Math.round(value * BILLING_RAW_SCALE));
+    }
+
+    if (typeof value === "string" && value.trim().length > 0) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) {
+            return Math.max(0, Math.round(parsed * BILLING_RAW_SCALE));
+        }
+    }
+
+    return 0;
 };
 
 const normalizeTokenQuota = (value: unknown): number => {
@@ -198,14 +216,15 @@ export const TokenUtils = {
         }
 
         if (billingMode === "request" || isLegacyRequestOnly) {
+            // 旧版 request 字段按微美元换算；新版按次计费字段按美元换算
             const inputCost = isLegacyRequestOnly
                 ? calculateFixedCostRaw(pricing.request)
-                : calculateFixedCostRaw(pricing.input);
+                : calculateUsdCostRaw(pricing.input);
             const outputCost = isLegacyRequestOnly
                 ? 0
-                : calculateFixedCostRaw(pricing.output);
+                : calculateUsdCostRaw(pricing.output);
             const cacheCost = !isLegacyRequestOnly && usage.cached_tokens && usage.cached_tokens > 0
-                ? calculateFixedCostRaw(pricing.cache)
+                ? calculateUsdCostRaw(pricing.cache)
                 : 0;
             const totalCost = inputCost + outputCost + cacheCost;
 
@@ -230,16 +249,29 @@ export const TokenUtils = {
             };
         }
 
+        // OpenAI 及多数兼容上游的 prompt_tokens 已包含缓存部分，
+        // 必须先扣除再按输入价计费，否则缓存 token 会被"输入全价 + 缓存价"重复收费。
+        const cachedTokens = hasTokens && usage.cached_tokens && usage.cached_tokens > 0
+            ? usage.cached_tokens
+            : 0;
+        const billableInputTokens = hasTokens
+            ? Math.max(0, usage.prompt_tokens! - cachedTokens)
+            : 0;
+
         const inputCost = hasTokens
-            ? calculateTokenRateCostRaw(usage.prompt_tokens!, pricing.input)
+            ? calculateTokenRateCostRaw(billableInputTokens, pricing.input)
             : 0;
         const outputCost = hasTokens
             ? calculateTokenRateCostRaw(usage.completion_tokens!, pricing.output)
             : 0;
 
         let cacheCost = 0;
-        if (hasTokens && usage.cached_tokens && usage.cached_tokens > 0 && pricing.cache) {
-            cacheCost = calculateTokenRateCostRaw(usage.cached_tokens, pricing.cache);
+        if (cachedTokens > 0) {
+            // 未单独配置缓存价时按输入价兜底，避免缓存部分变成免费
+            const cacheRate = hasPositivePricingValue(pricing.cache)
+                ? pricing.cache
+                : pricing.input;
+            cacheCost = calculateTokenRateCostRaw(cachedTokens, cacheRate);
         }
 
         return {
