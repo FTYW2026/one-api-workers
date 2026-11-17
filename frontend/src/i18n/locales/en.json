@@ -242,7 +242,7 @@
     "channelsAll": "All",
     "channelsCount": "{{count}}",
     "channelsCountWithUnit": "{{count}} channels",
-    "usedAvailable": "Used/Available",
+    "usedAvailable": "Used/Total",
     "resetQuota": "Reset Usage"
   },
   "pricing": {
